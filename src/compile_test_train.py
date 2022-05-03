@@ -3,6 +3,7 @@ from sqlalchemy import create_engine
 import numpy as np 
 import pandas as pd 
 import matplotlib.pyplot as pt 
+import csv
 
 # contrusting the main figure with 2 plots
 fig, axs = pt.subplots(2, figsize=(12,8))
@@ -32,8 +33,8 @@ axs[0].set_title("Ideal functions")
 for i in range(1, len(ideal_data[0,:]), 1):
     y = ideal_data[:, i]
     axs[1].plot(x,y, label='{}'.format(i))
-pt.savefig("figure-1.png")
-pt.show()
+# pt.savefig("figure-1.png")
+# pt.show()
 
 # finding the ideal function (i_f) to fit the test function
 
@@ -47,12 +48,14 @@ for i in range(1, len(training_data[0, :]), 1):
     ''' Holds data max(abs(delta)) for all i.f '''
     sum_delta_sqr_list = []
 
+    abs_delta_list = []
+
     ''' we take an ideal function'''
     for j in range(1, len(ideal_data[0,:]), 1):
         ''' find delta for all points'''
-        delta_list = np.subtract(training_data[:, i], ideal_data[:j])
+        delta_list = np.subtract(training_data[:, i], ideal_data[:,j])
         max_abs_delta = np.amax(np.abs(delta_list))
-        delta_sqr_list = np.sqaure(delta_list)
+        delta_sqr_list = np.square(delta_list)
         sum_delta_sqr = np.sum(delta_sqr_list)
         sum_delta_sqr_list.append(sum_delta_sqr)
         abs_delta_list.append(max_abs_delta)
@@ -65,7 +68,7 @@ for i in range(1, len(training_data[0, :]), 1):
     chosen_i_f_number_abs_delta.append((best_i_function_index + 1, max_abs_delta_best_i_f))
 
 '''plotting ideal data together with corresponding ideal function'''
-fig, axs = pt.subplots(2,2, figsize(12,8))
+fig, axs = pt.subplots(2,2, figsize=(12,8))
 k = 0
 for i in range(2):
     for j in range(2):
@@ -77,11 +80,11 @@ for i in range(2):
         axs[i,j].plot(x, y_training, label='training')
         axs[i,j].plot(x,y_training, label="ideal")
         axs[i,j].legend()
-plt.savefig("figure-2.png")
-plt.show()
+pt.savefig("figure-2.png")
+pt.show()
 
 # reading the test data set
-with open("test.csv",'r') as f:
+with open("src/test.csv",'r') as f:
     test_data = list(csv.reader(f, delimiter=","))
     ''' transform to np.array'''
     test_data = np.array(test_data[1:], dtype=np.float)
@@ -114,3 +117,28 @@ x_test = test_data[:, 0]
 y_test = test_data[:, 1]
 axs.plot(x_test, y_test, "r+", label='test data')
 pt.savefig("figure-3.png")
+
+# for every chosen i.f 
+for i in range(4):
+    points_to_if = filtered_test_data[filtered_test_data[:,2] == chosen_i_f_number_abs_delta[i][0]]
+    x = points_to_if[:, 0]
+    y = points_to_if[:, 1]
+    axs.plot(x, y, 'o', label='data atr to i.f {}'.format(chosen_i_f_number_abs_delta[i][0]))
+    # plotting corresponding i.f
+    x_fit = ideal_data[:,0]
+    y_fit = ideal_data[:, chosen_i_f_number_abs_delta[i][0]]
+    axs.plot(x_fit, y_fit, label='i.f {}'.format(chosen_i_f_number_abs_delta[i][0]))
+    axs.legend()
+
+    # opeining connection to sql
+    engine = create_engine("sqlite:///project_db.db", echo=True)
+    sqlite_connection = engine.connect()
+
+    # transform np array to pandas dataframe, with column names and write it to db
+    filtered_test_data = pd.DataFrame(data=filtered_test_data, columns=['x_test','y_test', 'i.f index','abs(dev)']) 
+    filtered_test_data.to_sql("filtered_test_data", sqlite_connection, if_exists='fail')
+    sqlite_connection.close()
+    pt.show()
+
+
+
